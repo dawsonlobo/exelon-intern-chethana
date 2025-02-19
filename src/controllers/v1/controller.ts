@@ -75,7 +75,7 @@ export const getAveragePopulation = async (req: Request, res: Response) => {
 export const getCity = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const city = await City.findOne({ cityId: id });
+    const city = await City.findOne({ id: id });
 
     if (!city) {
       return res.status(404).json({ message: 'City not found' });
@@ -142,7 +142,7 @@ export const updateCity = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { name, population, area } = req.body;
 
-    const updatedCity = await City.findOneAndUpdate({ cityId: id }, { name, population, area }, { new: true });
+    const updatedCity = await City.findOneAndUpdate({ id: id }, { name, population, area }, { new: true });
 
     if (!updatedCity) {
       return res.status(404).json({ message: 'City not found' });
@@ -176,7 +176,7 @@ export const updateCityByName = async (req: Request, res: Response) => {
 export const deleteCity = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const deletedCity = await City.findOneAndDelete({ cityId: id });
+    const deletedCity = await City.findOneAndDelete({ id: id });
 
     if (!deletedCity) {
       return res.status(404).json({ message: 'City not found' });
