@@ -1,7 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
-import v1Routes from "./routes/v1/route"; // Import the versioned routes
 import dotenv from 'dotenv';
+import v1Routes from "./routes/v1/route"; // Import the versioned routes
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -19,13 +19,9 @@ if (!mongoUrl) {
 }
 
 // Connect to MongoDB
-mongoose.connect(mongoUrl, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-} as any)
-.then(() => console.log('MongoDB Connected to exelon-city'))
-.catch(err => console.log('MongoDB Connection Error:', err));
-
+mongoose.connect(mongoUrl)
+  .then(() => console.log('MongoDB Connected to exelon-city'))
+  .catch(err => console.error('MongoDB Connection Error:', err));
 
 // Register versioned routes
 app.use("/api/v1", v1Routes);
