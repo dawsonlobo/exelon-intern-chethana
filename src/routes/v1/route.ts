@@ -15,7 +15,8 @@ import {
   deleteCities,
   filterCities,
   filterCityByKey,
-  getCitiesWithPagination
+  getCitiesWithPagination,
+  filterAndSortCities
 } from '../../controllers/v1/controller';
 
 const router = express.Router();
@@ -25,6 +26,8 @@ const router = express.Router();
  *   get:
  *     summary: Get all cities
  *     description: Retrieve a list of all cities
+ *     tags:
+ *       - Cities
  *     responses:
  *       200:
  *         description: Successfully retrieved
@@ -73,6 +76,8 @@ router.get('/city', async (req, res) => {
  *   get:
  *     summary: Get total population by city
  *     description: Retrieve the total population for all cities combined
+ *     tags:
+ *       - Cities
  *     responses:
  *       200:
  *         description: Successfully retrieved total population
@@ -105,6 +110,8 @@ router.get('/city/total-population', async (req, res) => {
  *   get:
  *     summary: Get city with minimum population
  *     description: Retrieve the city with the lowest population
+ *     tags:
+ *       - Cities
  *     responses:
  *       200:
  *         description: Successfully retrieved city with minimum population
@@ -147,6 +154,8 @@ router.get('/city/min-population', async (req, res) => {
  *   get:
  *     summary: Get cities sorted by population
  *     description: Retrieve all cities sorted by their population in ascending order
+ *     tags:
+ *        - Cities
  *     responses:
  *       200:
  *         description: Successfully retrieved sorted cities
@@ -193,9 +202,12 @@ router.get('/city/sorted-population', async (req, res) => {
  *   get:
  *     summary: Get average population
  *     description: Retrieve the average population of all cities
+ *     tags:
+ *           - Cities
  *     responses:
  *       200:
  *         description: Successfully retrieved average population
+ *   
  *         content:
  *           application/json:
  *             schema:
@@ -224,6 +236,8 @@ router.get('/city/average-population', async (req, res) => {
  *   get:
  *     summary: Get city by ID
  *     description: Retrieve details of a specific city using its ID
+ *     tags:
+ *       - Cities
  *     parameters:
  *       - in: path
  *         name: id
@@ -271,6 +285,8 @@ router.get('/city/:id', async (req, res) => {
  *   post:
  *     summary: Create a new city
  *     description: Add a new city to the database
+ *     tags:
+ *       - Cities
  *     requestBody:
  *       required: true
  *       content:
@@ -304,6 +320,8 @@ router.post('/city', validateCity, async (req, res) => {
  *   post:
  *     summary: Create multiple cities
  *     description: Add multiple cities to the database in a single request.
+ *     tags:
+ *       - Cities
  *     requestBody:
  *       required: true
  *       content:
@@ -387,6 +405,8 @@ router.post('/cities', validateCity, async (req, res) => {
  *   put:
  *     summary: Update a city by ID
  *     description: Update details of a specific city using its ID
+ *     tags:
+ *       - Cities
  *     parameters:
  *       - in: path
  *         name: id
@@ -427,6 +447,8 @@ router.put('/city/:id', async (req, res) => {
  *   put:
  *     summary: Update a city by name
  *     description: Update details of a specific city using its name
+ *     tags:
+ *       - Cities
  *     parameters:
  *       - in: path
  *         name: name
@@ -465,6 +487,8 @@ router.put('/city/name/:name', async (req, res) => {
  *   delete:
  *     summary: Delete a city by ID
  *     description: Remove a specific city from the database using its ID
+ *     tags:
+ *       - Cities
  *     parameters:
  *       - in: path
  *         name: id
@@ -520,6 +544,8 @@ router.delete('/city/:id', async (req, res) => {
  *   delete:
  *     summary: Delete multiple cities
  *     description: Remove multiple cities from the database by their IDs
+ *     tags:
+ *       - Cities
  *     requestBody:
  *       required: true
  *       content:
@@ -567,6 +593,8 @@ router.delete('/cities', async (req, res) => {
  *       Pass field names (`id`, `name`, `area`, `population`) with 1 (show) or 0 (hide).
  *       - Only fields marked as `1` will appear in the response.
  *       - If all fields are `0`, the API will return the remaining fields.
+ *     tags:
+ *       - Cities
  *     requestBody:
  *       required: true
  *       content:
@@ -765,6 +793,55 @@ router.post("/cities/paginate", async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
-
+/**
+ * @swagger
+ * /api/v1/cities/filter-sort:
+ *   post:
+ *     summary: Filter and sort cities dynamically
+ *     description: Retrieve cities with dynamic sorting based on any field (name, area, population).
+ *     tags:
+ *       - Cities
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               sortBy:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["name", "area"]
+ *               sortDesc:
+ *                 type: array
+ *                 items:
+ *                   type: boolean
+ *                 example: [false, true]
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved sorted cities
+ *         content:
+ *           application/json:
+ *             example:
+ *               status: 200
+ *               message: "Success"
+ *               data:
+ *                 tableCount: 100
+ *                 tableData:
+ *                   - name: "Berlin"
+ *                     area: "891.8"
+ *                     population: "3,769,495"
+ *                   - name: "Paris"
+ *                     area: "105.4"
+ *                     population: "2,148,271"
+ */
+router.post("/cities/filter-sort", async (req, res) => {
+  try {
+    await filterAndSortCities(req, res);
+  } catch (err) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
 
 export default router;

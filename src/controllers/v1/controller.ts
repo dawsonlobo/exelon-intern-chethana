@@ -329,5 +329,36 @@ export const getCitiesWithPagination = async (req: Request, res: Response) => {
   }
 };
 
+export const filterAndSortCities = async (req: Request, res: Response) => {
+  try {
+    const { sortBy, sortDesc } = req.body;
+
+    // Construct sorting object dynamically
+    const sortQuery: Record<string, 1 | -1> = {};
+
+    if (Array.isArray(sortBy) && Array.isArray(sortDesc) && sortBy.length === sortDesc.length) {
+      sortBy.forEach((key, index) => {
+        sortQuery[key] = sortDesc[index] ? -1 : 1; // true -> descending (-1), false -> ascending (1)
+      });
+    }
+
+    // MongoDB Aggregation with Sorting
+    const cities = await City.aggregate([
+      { $sort: sortQuery }, // Apply dynamic sorting
+      { $project: { _id: 0 } } // Exclude _id field
+    ]);
+
+    res.status(200).json({
+      status: 200,
+      message: "Success",
+      data: {
+        tableData: cities
+      }
+    });
+  } catch (error) {
+    console.error("Error filtering and sorting cities:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
 
 
