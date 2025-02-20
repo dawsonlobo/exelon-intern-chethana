@@ -206,3 +206,128 @@ export const deleteCities = async (req: Request, res: Response) => {
     res.status(500).json({ message: err instanceof Error ? err.message : "Internal Server Error" });
   }
 };
+
+export const filterCities = async (req: Request, res: Response) => {
+  try {
+    const filterFields = req.body; // Extract user-provided filters
+
+    if (Object.keys(filterFields).length === 0) {
+      return res.status(400).json({ message: "At least one field is required." });
+    }
+
+    let projection: any = {};
+    let hasInclude = false;
+    let hasExclude = false;
+
+    // Determine whether we are including or excluding fields
+    Object.entries(filterFields).forEach(([key, value]) => {
+      if (value === 1) {
+        hasInclude = true;
+      } else if (value === 0) {
+        hasExclude = true;
+      }
+    });
+
+    if (hasInclude && hasExclude) {
+      // If both 1 and 0 exist, strictly include only the `1` fields
+      Object.entries(filterFields).forEach(([key, value]) => {
+        if (value === 1) {
+          projection[key] = 1;
+        }
+      });
+    } else {
+      // Otherwise, apply inclusion or exclusion as needed
+      Object.entries(filterFields).forEach(([key, value]) => {
+        projection[key] = value === 1 ? 1 : 0;
+      });
+    }
+
+    // Always hide `_id` field
+    projection._id = 0;
+
+    // Fetch cities using aggregation
+    const cities = await City.aggregate([{ $project: projection }]);
+
+    res.status(200).json(cities);
+  } catch (error) {
+    console.error("Error filtering cities:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+
+
+export const filterCityByKey = async (req: Request, res: Response) => {
+  try {
+    const filterCriteria = req.body; // Accepts dynamic fields
+
+    if (!filterCriteria || typeof filterCriteria !== "object") {
+      return res.status(400).json({ message: "Invalid request format. Provide an object with fields to filter." });
+    }
+
+    // Construct the dynamic match filter
+    const matchQuery: any = { $and: [] };
+
+    Object.entries(filterCriteria).forEach(([key, values]) => {
+      if (Array.isArray(values) && values.length > 0) {
+        const regexConditions = values.map(value => ({
+          [key]: isNaN(Number(value)) // Check if it's a number
+            ? { $regex: new RegExp(value, "i") } // Case-insensitive regex for strings
+            : Number(value), // Convert to number if applicable
+        }));
+
+        matchQuery.$and.push({ $or: regexConditions });
+      }
+    });
+
+    // Handle case where no filters are provided
+    if (matchQuery.$and.length === 0) {
+      return res.status(400).json({ message: "No valid filter criteria provided." });
+    }
+
+    // MongoDB Aggregation to filter dynamically
+    const cities = await City.aggregate([
+      { $match: matchQuery },
+      { $project: { _id: 0 } } // Exclude MongoDB _id field
+    ]);
+
+    res.status(200).json(cities);
+  } catch (error) {
+    console.error("Error filtering cities:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const getCitiesWithPagination = async (req: Request, res: Response) => {
+  try {
+    const { page = 1, itemsPerPage = 10 } = req.body;
+
+    // Convert to integers
+    const pageNumber = Math.max(1, parseInt(page as any, 10));
+    const limit = Math.max(1, parseInt(itemsPerPage as any, 10));
+    const skip = (pageNumber - 1) * limit;
+
+    // Get total count of cities (without pagination)
+    const totalItems = await City.countDocuments();
+
+    // Fetch paginated data
+    const cities = await City.find().skip(skip).limit(limit).select("-_id"); // Exclude _id
+
+    // Construct response
+    res.status(200).json({
+      status: 200,
+      message: "Success",
+      data: {
+        tableCount: totalItems, // Total documents in the collection
+        tableData: cities
+  
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching paginated cities:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+
+

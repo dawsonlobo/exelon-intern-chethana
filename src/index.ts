@@ -10,6 +10,8 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware to parse incoming JSON requests
 app.use(express.json());
+app.use("/api/v1/cities", v1Routes); // Correct mounting path
+
 
 // Load environment variables
 dotenv.config();
