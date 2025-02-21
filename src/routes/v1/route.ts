@@ -13,13 +13,11 @@ import {
   createCities,
   updateCityByName,
   deleteCities,
-  filterCities,
-  filterCityByKey,
-  getCitiesWithPagination,
-  filterAndSortCities
+  handleCityActions
 } from '../../controllers/v1/controller';
 
 const router = express.Router();
+
 /**
  * @swagger
  * /api/v1/city:
@@ -31,8 +29,6 @@ const router = express.Router();
  *     responses:
  *       200:
  *         description: Successfully retrieved
- *         tags:
- *          - Cities  
  *         content:
  *           application/json:
  *             schema:
@@ -61,7 +57,6 @@ const router = express.Router();
  *                     population: 3980400
  *                     country: "USA"
  */
-
 router.get('/city', async (req, res) => {
   try {
     await getAllCities(req, res);
@@ -93,9 +88,7 @@ router.get('/city', async (req, res) => {
  *                 summary: Example Response
  *                 value:
  *                   totalPopulation: 120000000
- *     
  */
-
 router.get('/city/total-population', async (req, res) => {
   try {
     await getTotalPopulationByCity(req, res);
@@ -137,9 +130,7 @@ router.get('/city/total-population', async (req, res) => {
  *                     id: "5"
  *                     name: "Smalltown"
  *                     population: 5000
- *  
  */
-
 router.get('/city/min-population', async (req, res) => {
   try {
     await getCityWithMinPopulation(req, res);
@@ -155,7 +146,7 @@ router.get('/city/min-population', async (req, res) => {
  *     summary: Get cities sorted by population
  *     description: Retrieve all cities sorted by their population in ascending order
  *     tags:
- *        - Cities
+ *       - Cities
  *     responses:
  *       200:
  *         description: Successfully retrieved sorted cities
@@ -185,9 +176,7 @@ router.get('/city/min-population', async (req, res) => {
  *                   - id: "1"
  *                     name: "Big City"
  *                     population: 10000000
- *      
  */
-
 router.get('/city/sorted-population', async (req, res) => {
   try {
     await getCitiesSortedByPopulation(req, res);
@@ -203,11 +192,10 @@ router.get('/city/sorted-population', async (req, res) => {
  *     summary: Get average population
  *     description: Retrieve the average population of all cities
  *     tags:
- *           - Cities
+ *       - Cities
  *     responses:
  *       200:
  *         description: Successfully retrieved average population
- *   
  *         content:
  *           application/json:
  *             schema:
@@ -220,9 +208,7 @@ router.get('/city/sorted-population', async (req, res) => {
  *                 summary: Example Response
  *                 value:
  *                   averagePopulation: 6000000
- *     
  */
-
 router.get('/city/average-population', async (req, res) => {
   try {
     await getAveragePopulation(req, res);
@@ -230,6 +216,7 @@ router.get('/city/average-population', async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 /**
  * @swagger
  * /api/v1/city/{id}:
@@ -268,9 +255,7 @@ router.get('/city/average-population', async (req, res) => {
  *                   name: "New York"
  *                   population: 8419600
  *                   country: "USA"
- *  
  */
-
 router.get('/city/:id', async (req, res) => {
   try {
     await getCity(req, res);
@@ -314,6 +299,7 @@ router.post('/city', validateCity, async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 /**
  * @swagger
  * /api/v1/cities:
@@ -388,10 +374,7 @@ router.post('/city', validateCity, async (req, res) => {
  *                       name: "Mumbai"
  *                       population: 20411000
  *                       country: "India"
- *     
  */
-
-
 router.post('/cities', validateCity, async (req, res) => {
   try {
     await createCities(req, res);
@@ -399,6 +382,7 @@ router.post('/cities', validateCity, async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 /**
  * @swagger
  * /api/v1/city/{id}:
@@ -441,6 +425,7 @@ router.put('/city/:id', async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 /**
  * @swagger
  * /api/v1/city/name/{name}:
@@ -472,7 +457,6 @@ router.put('/city/:id', async (req, res) => {
  *     responses:
  *       200:
  *         description: City successfully updated
- *      
  */
 router.put('/city/name/:name', async (req, res) => {
   try {
@@ -481,6 +465,7 @@ router.put('/city/name/:name', async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 /**
  * @swagger
  * /api/v1/city/{id}:
@@ -527,9 +512,7 @@ router.put('/city/name/:name', async (req, res) => {
  *                     name: "Chicago"
  *                     population: 2716000
  *                     country: "USA"
- *     
  */
-
 router.delete('/city/:id', async (req, res) => {
   try {
     await deleteCity(req, res);
@@ -574,9 +557,7 @@ router.delete('/city/:id', async (req, res) => {
  *                   items:
  *                     type: string
  *                   example: ["101", "102", "103"]
- *    
  */
-
 router.delete('/cities', async (req, res) => {
   try {
     await deleteCities(req, res);
@@ -584,264 +565,263 @@ router.delete('/cities', async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 /**
  * @swagger
- * /api/v1/city/filter:
+ * /api/v1/filter-cities:
  *   post:
- *     summary: Get cities with dynamically filtered fields
- *     description: |
- *       Pass field names (`id`, `name`, `area`, `population`) with 1 (show) or 0 (hide).
- *       - Only fields marked as `1` will appear in the response.
- *       - If all fields are `0`, the API will return the remaining fields.
- *     tags:
- *       - Cities
+ *     tags: City API
+ *     summary: abcd Retrieve cities with a selected operation
+ *     description: >
+ *       Choose one of the following operations from the dropdown:
+ *       - **pagination**: Returns cities with pagination.
+ *       - **projection**: Returns cities with only selected fields.
+ *       - **sort**: Returns cities sorted by a specific field.
+ *       - **filter**: Returns cities filtered by dynamic criteria.
+ *       - **search**: Returns search details for a case-insensitive search.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               id:
- *                 type: integer
- *                 enum: [0, 1]
- *                 description: Include (1) or exclude (0) the 'id' field.
- *               name:
- *                 type: integer
- *                 enum: [0, 1]
- *                 description: Include (1) or exclude (0) the 'name' field.
- *               area:
- *                 type: integer
- *                 enum: [0, 1]
- *                 description: Include (1) or exclude (0) the 'area' field.
- *               population:
- *                 type: integer
- *                 enum: [0, 1]
- *                 description: Include (1) or exclude (0) the 'population' field.
+ *             oneOf:
+ *               - $ref: '#/components/schemas/PaginationRequest'
+ *               - $ref: '#/components/schemas/ProjectionRequest'
+ *               - $ref: '#/components/schemas/SortRequest'
+ *               - $ref: '#/components/schemas/FilterRequest'
+ *               - $ref: '#/components/schemas/SearchRequest'
  *           examples:
- *             ShowOnlyID:
- *               summary: Show only ID
+ *             PaginationExample:
+ *               summary: Pagination only
  *               value:
- *                 id: 1
- *                 name: 0
- *                 area: 0
- *                 population: 0
- *             ShowOnlyName:
- *               summary: Show only Name
+ *                 pagination:
+ *                   page: "1"
+ *                   limit: "10"
+ *             ProjectionExample:
+ *               summary: Projection only
  *               value:
- *                 id: 0
- *                 name: 1
- *                 area: 0
- *                 population: 0
- *             ShowIDAndArea:
- *               summary: Show ID and Area
+ *                 projection: "name,area"
+ *             SortExample:
+ *               summary: Sort only
  *               value:
- *                 id: 1
- *                 name: 0
- *                 area: 1
- *                 population: 0
- *             HideIDAndName:
- *               summary: Hide ID and Name, Show Area and Population
+ *                 sort: "name:asc"
+ *             FilterExample:
+ *               summary: Filter only
  *               value:
- *                 id: 0
- *                 name: 0
- *                 area: 1
- *                 population: 1
+ *                 filter:
+ *                   name: ["New York", "Los Angeles"]
+ *             SearchExample:
+ *               summary: Search only
+ *               value:
+ *                 search: "New York"
+ *                 searchFields: ["name", "area", "population"]
  *     responses:
  *       200:
- *         description: Successfully retrieved filtered cities.
+ *         description: Successful response based on the selected operation.
  *         content:
  *           application/json:
  *             schema:
+ *               oneOf:
+ *                 - $ref: '#/components/schemas/PaginationResponse'
+ *                 - $ref: '#/components/schemas/ProjectionResponse'
+ *                 - $ref: '#/components/schemas/SortResponse'
+ *                 - $ref: '#/components/schemas/FilterResponse'
+ *                 - $ref: '#/components/schemas/SearchResponse'
+ *
+ * components:
+ *   schemas:
+ *     PaginationRequest:
+ *       type: object
+ *       required:
+ *         - pagination
+ *       properties:
+ *         pagination:
+ *           type: object
+ *           properties:
+ *             page:
+ *               type: string
+ *               example: "1"
+ *             limit:
+ *               type: string
+ *               example: "10"
+ *
+ *     ProjectionRequest:
+ *       type: object
+ *       required:
+ *         - projection
+ *       properties:
+ *         projection:
+ *           type: string
+ *           description: Comma-separated list of fields to include or exclude. Prefix with "-" to exclude.
+ *           example: "name,area"
+ *
+ *     SortRequest:
+ *       type: object
+ *       required:
+ *         - sort
+ *       properties:
+ *         sort:
+ *           type: string
+ *           description: Sort order in the format "field:asc" or "field:desc".
+ *           example: "name:asc"
+ *
+ *     FilterRequest:
+ *       type: object
+ *       required:
+ *           example: "name,area"
+ *
+ *
+ *     FilterRequest:
+ *       type: object
+ *       required:
+ *         - filter
+ *       properties:
+ *         filter:
+ *           type: object
+ *           description: >
+ *             Dynamic filter criteria. Each key can be any field (e.g., name, area, population)
+ *             and its value should be an array of values.
+ *           example: { "name": ["New York"] }
+ *
+ *     SearchRequest:
+ *       type: object
+ *       required:
+ *         - search
+ *       properties:
+ *         search:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               term:
+ *                 type: string
+ *                 description: Search string for matching cities.
+ *                 example: "York"
+ *               fields:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: List of fields to perform the search on.
+ *                 example: ["name"]
+ *               startsWith:
+ *                 type: boolean
+ *                 description: If true, searches for cities starting with the term.
+ *                 example: false
+ *               endsWith:
+ *                 type: boolean
+ *                 description: If true, searches for cities ending with the term.
+ *                 example: true
+ *
+ *     PaginationResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: number
+ *           example: 200
+ *         message:
+ *           type: string
+ *           example: "Success"
+ *         data:
+ *           type: object
+ *           properties:
+ *             totalCount:
+ *               type: number
+ *               example: 100
+ *             tableData:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/City'
+ *
+ *     ProjectionResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: number
+ *           example: 200
+ *         message:
+ *           type: string
+ *           example: "Success"
+ *         data:
+ *           type: object
+ *           properties:
+ *             totalCount:
+ *               type: number
+ *               example: 100
+ *             tableData:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/City'
+ *
+ *     SortResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: number
+ *           example: 200
+ *         message:
+ *           type: string
+ *           example: "Success"
+ *         data:
+ *           type: object
+ *           properties:
+ *             totalCount:
+ *               type: number
+ *               example: 100
+ *             tableData:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/City'
+ *
+ *     FilterResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: number
+ *           example: 200
+ *         message:
+ *           type: string
+ *           example: "Success"
+ *         data:
+ *           type: object
+ *           properties:
+ *             totalCount:
+ *               type: number
+ *               example: 100
+ *             tableData:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/City'
+ *
+ *     SearchResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: number
+ *           example: 200
+ *         message:
+ *           type: string
+ *           example: "Success"
+ *         data:
+ *           type: object
+ *           properties:
+ *             totalCount:
+ *               type: number
+ *               example: 1
+ *             tableData:
  *               type: array
  *               items:
  *                 type: object
  *                 properties:
- *                   id:
- *                     type: string
- *                     description: The city ID (only if id = 1)
  *                   name:
  *                     type: string
- *                     description: The city name (only if name = 1)
+ *                     example: "New York"
  *                   area:
- *                     type: string
- *                     description: The city area (only if area = 1)
+ *                     type: number
+ *                     example: 468.9
  *                   population:
- *                     type: string
- *                     description: The city population (only if population = 1)
- *             examples:
- *               ShowOnlyID:
- *                 summary: Show only ID
- *                 value:
- *                   - id: "65d7894b20abf"
- *               ShowOnlyName:
- *                 summary: Show only Name
- *                 value:
- *                   - name: "New York"
- *               ShowIDAndArea:
- *                 summary: Show ID and Area
- *                 value:
- *                   - id: "65d7894b20abf"
- *                     area: "783.8 km²"
- *               HideIDAndName:
- *                 summary: Hide ID and Name, Show Area and Population
- *                 value:
- *                   - area: "783.8 km²"
- *                     population: "8,336,817"
+ *                     type: number
+ *                     example: 8419600
  */
 
-router.post('/city/filter', async (req, res) => {
-  try {
-    await filterCities(req, res);
-  } catch (err) {
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-}
-);
-/**
- * @swagger
- * /api/v1/cities/filter:
- *   post:
- *     summary: Filter cities dynamically by any field (case insensitive)
- *     description: Retrieve cities based on provided key-value pairs (e.g., name, area, population). The keys can be any field in the database.
- *     tags:
- *       - Cities
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             additionalProperties:
- *               type: array
- *               items:
- *                 type: string
- *           example:
- *             name: ["USA", "UK"]
- *             population: ["300000"]
- *     responses:
- *       200:
- *         description: Successfully retrieved cities
- *         content:
- *           application/json:
- *             example:
- *               - name: "USA"
- *                 area: "9,834,000 km²"
- *                 population: "331,002,651"
- *               - name: "UK"
- *                 area: "243,610 km²"
- *                 population: "67,886,011"
- *      
- */
-router.post("/cities/filter", async (req, res) => {
-  try {
-    await filterCityByKey(req, res);
-  } catch (err) {
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-});
-
-/**
- * @swagger
- * /api/v1/cities/paginate:
- *   post:
- *     summary: Get paginated list of cities
- *     description: Fetch cities with pagination. The response includes the total count of cities in the database, and paginated results based on user input.
- *     tags:
- *       - Cities
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               page:
- *                 type: integer
- *                 description: Page number (default is 1)
- *                 example: 1
- *               itemsPerPage:
- *                 type: integer
- *                 description: Number of items per page (default is 10)
- *                 example: 10
- *     responses:
- *       200:
- *         description: Successfully retrieved paginated cities
- *         content:
- *           application/json:
- *             example:
- *               status: 200
- *               message: "Success"
- *               data:
- *                 tableCount: 50
- *                 tableData:
- *                   - page: 1
- *                     itemsPerPage: 2
- *                     cities:
- *                       - name: "New York"
- *                         population: "8,336,817"
- *                         area: "783.8"
- *                       - name: "Los Angeles"
- *                         population: "3,979,576"
- *                         area: "1,302 "
- *   
- */
-router.post("/cities/paginate", async (req, res) => {
-  try {
-    await getCitiesWithPagination(req, res);
-  } catch (err) {
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-});
-/**
- * @swagger
- * /api/v1/cities/filter-sort:
- *   post:
- *     summary: Filter and sort cities dynamically
- *     description: Retrieve cities with dynamic sorting based on any field (name, area, population).
- *     tags:
- *       - Cities
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               sortBy:
- *                 type: array
- *                 items:
- *                   type: string
- *                 example: ["name", "area"]
- *               sortDesc:
- *                 type: array
- *                 items:
- *                   type: boolean
- *                 example: [false, true]
- *     responses:
- *       200:
- *         description: Successfully retrieved sorted cities
- *         content:
- *           application/json:
- *             example:
- *               status: 200
- *               message: "Success"
- *               data:
- *                 tableCount: 100
- *                 tableData:
- *                   - name: "Berlin"
- *                     area: "891.8"
- *                     population: "3,769,495"
- *                   - name: "Paris"
- *                     area: "105.4"
- *                     population: "2,148,271"
- */
-router.post("/cities/filter-sort", async (req, res) => {
-  try {
-    await filterAndSortCities(req, res);
-  } catch (err) {
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-});
-
+router.post("/filter-cities", handleCityActions);
 export default router;

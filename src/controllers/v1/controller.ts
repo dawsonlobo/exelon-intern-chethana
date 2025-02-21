@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import City, { ICity } from "../../models/v1/city";
 
 // Get all cities
@@ -206,159 +206,185 @@ export const deleteCities = async (req: Request, res: Response) => {
     res.status(500).json({ message: err instanceof Error ? err.message : "Internal Server Error" });
   }
 };
+// Handle city actions
 
-export const filterCities = async (req: Request, res: Response) => {
+
+export async function handleCityActions(req: Request, res: Response, next: NextFunction): Promise<void> {
+  // Destructure nested parameters from the request body
+  const { 
+    pagination = {}, 
+    filter = {}, 
+    sort = '', 
+    search = '', 
+    searchFields = [], // optional: fields to search in (e.g., ["name", "area", "population"])
+    projection = '', 
+    id 
+  } = req.body;
+  
+  // Extract page and limit from the nested pagination object with defaults
+  const { page = '1', limit = '10' } = pagination;
+  
+  const query: Record<string, any> = {};
+  const options: Record<string, any> = {};
+
   try {
-    const filterFields = req.body; // Extract user-provided filters
+    // If a specific city ID is provided, query by _id
+    if (id) query._id = id;
 
-    if (Object.keys(filterFields).length === 0) {
-      return res.status(400).json({ message: "At least one field is required." });
-    }
-
-    let projection: any = {};
-    let hasInclude = false;
-    let hasExclude = false;
-
-    // Determine whether we are including or excluding fields
-    Object.entries(filterFields).forEach(([key, value]) => {
-      if (value === 1) {
-        hasInclude = true;
-      } else if (value === 0) {
-        hasExclude = true;
-      }
-    });
-
-    if (hasInclude && hasExclude) {
-      // If both 1 and 0 exist, strictly include only the `1` fields
-      Object.entries(filterFields).forEach(([key, value]) => {
-        if (value === 1) {
-          projection[key] = 1;
+    // ===== Dynamic Filtering =====
+    // Expecting 'filter' to be an object where each key maps to an array of values.
+    if (filter && typeof filter === 'object') {
+      const filterQuery: any = { $and: [] };
+      Object.entries(filter).forEach(([key, values]) => {
+        if (Array.isArray(values) && values.length > 0) {
+          // Build an array of conditions for this key
+          const conditions = values.map(value => ({
+            [key]: isNaN(Number(value))
+              ? { $regex: new RegExp(value, "i") }  // For string values, use case-insensitive regex
+              : Number(value)                        // For numeric values, match exactly
+          }));
+          filterQuery.$and.push({ $or: conditions });
         }
       });
-    } else {
-      // Otherwise, apply inclusion or exclusion as needed
-      Object.entries(filterFields).forEach(([key, value]) => {
-        projection[key] = value === 1 ? 1 : 0;
-      });
-    }
-
-    // Always hide `_id` field
-    projection._id = 0;
-
-    // Fetch cities using aggregation
-    const cities = await City.aggregate([{ $project: projection }]);
-
-    res.status(200).json(cities);
-  } catch (error) {
-    console.error("Error filtering cities:", error);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-};
-
-
-
-export const filterCityByKey = async (req: Request, res: Response) => {
-  try {
-    const filterCriteria = req.body; // Accepts dynamic fields
-
-    if (!filterCriteria || typeof filterCriteria !== "object") {
-      return res.status(400).json({ message: "Invalid request format. Provide an object with fields to filter." });
-    }
-
-    // Construct the dynamic match filter
-    const matchQuery: any = { $and: [] };
-
-    Object.entries(filterCriteria).forEach(([key, values]) => {
-      if (Array.isArray(values) && values.length > 0) {
-        const regexConditions = values.map(value => ({
-          [key]: isNaN(Number(value)) // Check if it's a number
-            ? { $regex: new RegExp(value, "i") } // Case-insensitive regex for strings
-            : Number(value), // Convert to number if applicable
-        }));
-
-        matchQuery.$and.push({ $or: regexConditions });
+      if (filterQuery.$and.length > 0) {
+        Object.assign(query, filterQuery);
       }
-    });
-
-    // Handle case where no filters are provided
-    if (matchQuery.$and.length === 0) {
-      return res.status(400).json({ message: "No valid filter criteria provided." });
     }
-
-    // MongoDB Aggregation to filter dynamically
-    const cities = await City.aggregate([
-      { $match: matchQuery },
-      { $project: { _id: 0 } } // Exclude MongoDB _id field
-    ]);
-
-    res.status(200).json(cities);
-  } catch (error) {
-    console.error("Error filtering cities:", error);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-};
-
-export const getCitiesWithPagination = async (req: Request, res: Response) => {
-  try {
-    const { page = 1, itemsPerPage = 10 } = req.body;
-
-    // Convert to integers
-    const pageNumber = Math.max(1, parseInt(page as any, 10));
-    const limit = Math.max(1, parseInt(itemsPerPage as any, 10));
-    const skip = (pageNumber - 1) * limit;
-
-    // Get total count of cities (without pagination)
-    const totalItems = await City.countDocuments();
-
-    // Fetch paginated data
-    const cities = await City.find().skip(skip).limit(limit).select("-_id"); // Exclude _id
-
-    // Construct response
-    res.status(200).json({
-      status: 200,
-      message: "Success",
-      data: {
-        tableCount: totalItems, // Total documents in the collection
-        tableData: cities
+// ===== Search =====
+// If a search string is provided and we're in search-only mode,
+// perform three separate queries for exact, starts with, and ends with matches,
+// then return the result in the desired format.
+if (search) {
+  // Use provided searchFields or default to ["name"]
+  const fieldsToSearch = (Array.isArray(searchFields) && searchFields.length > 0) ? searchFields : ["name"];
   
+  // Build the exact match query for all specified fields
+  const exactQuery = {
+    $or: fieldsToSearch.map(field => {
+      if (City.schema.paths[field] && City.schema.paths[field].instance === "Number") {
+        return {
+          $expr: {
+            $regexMatch: {
+              input: { $toString: `$${field}` },
+              regex: `^${search}$`,
+              options: 'i'
+            }
+          }
+        };
+      } else {
+        return { [field]: { $regex: `^${search}$`, $options: 'i' } };
       }
-    });
-  } catch (error) {
-    console.error("Error fetching paginated cities:", error);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-};
+    })
+  };
 
-export const filterAndSortCities = async (req: Request, res: Response) => {
-  try {
-    const { sortBy, sortDesc } = req.body;
+  // Build the "starts with" query for all specified fields
+  const startsWithQuery = {
+    $or: fieldsToSearch.map(field => {
+      if (City.schema.paths[field] && City.schema.paths[field].instance === "Number") {
+        return {
+          $expr: {
+            $regexMatch: {
+              input: { $toString: `$${field}` },
+              regex: `^${search}`,
+              options: 'i'
+            }
+          }
+        };
+      } else {
+        return { [field]: { $regex: `^${search}`, $options: 'i' } };
+      }
+    })
+  };
 
-    // Construct sorting object dynamically
-    const sortQuery: Record<string, 1 | -1> = {};
+  // Build the "ends with" query for all specified fields
+  const endsWithQuery = {
+    $or: fieldsToSearch.map(field => {
+      if (City.schema.paths[field] && City.schema.paths[field].instance === "Number") {
+        return {
+          $expr: {
+            $regexMatch: {
+              input: { $toString: `$${field}` },
+              regex: `${search}$`,
+              options: 'i'
+            }
+          }
+        };
+      } else {
+        return { [field]: { $regex: `${search}$`, $options: 'i' } };
+      }
+    })
+  };
 
-    if (Array.isArray(sortBy) && Array.isArray(sortDesc) && sortBy.length === sortDesc.length) {
-      sortBy.forEach((key, index) => {
-        sortQuery[key] = sortDesc[index] ? -1 : 1; // true -> descending (-1), false -> ascending (1)
-      });
+  // Run the queries
+  
+  const startsWithCount = await City.countDocuments(startsWithQuery);
+  const endsWithCount = await City.countDocuments(endsWithQuery);
+
+  // Return the search result in the standard format
+  res.json({
+    search: [
+      {
+        term: search,
+        fields: fieldsToSearch,
+       
+        startsWith: startsWithCount > 0,
+        endsWith: endsWithCount > 0
+      }
+    ]
+  });
+  return;
+}
+
+
+    // ===== Projection =====
+    // Build projection options from a comma-separated list.
+    // Use "-field" (e.g., "-population") to exclude a field; otherwise, include the field.
+    if (projection) {
+      options.projection = projection.split(',').reduce((acc: Record<string, number>, field: string) => {
+        const trimmedField = field.trim();
+        acc[trimmedField.startsWith('-') ? trimmedField.slice(1) : trimmedField] =
+          trimmedField.startsWith('-') ? 0 : 1;
+        return acc;
+      }, {});
     }
 
-    // MongoDB Aggregation with Sorting
-    const cities = await City.aggregate([
-      { $sort: sortQuery }, // Apply dynamic sorting
-      { $project: { _id: 0 } } // Exclude _id field
-    ]);
+    // ===== Sorting =====
+    // Expects a format like "name:asc" or "name:desc"
+    if (sort) {
+      const [key, order] = sort.split(':');
+      options.sort = { [key]: order === 'desc' ? -1 : 1 };
+    }
 
-    res.status(200).json({
+    // ===== Pagination =====
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Execute the query with pagination, sort, and projection options
+    const cities = await City.find(query, options.projection)
+                              .skip(skip)
+                              .limit(parseInt(limit))
+                              .sort(options.sort);
+    const totalCities = await City.countDocuments(query);
+
+    // Return response in standard format:
+    // {
+    //   "status": 200,
+    //   "message": "Success",
+    //   "data": {
+    //      "totalCount": <totalCities>,
+    //      "tableData": [ ...cities ]
+    //   }
+    // }
+    res.json({
       status: 200,
       message: "Success",
       data: {
+        totalCount: totalCities,
         tableData: cities
       }
     });
   } catch (error) {
-    console.error("Error filtering and sorting cities:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error('Error fetching cities:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Error fetching cities. Please try again later.', message: errorMessage });
   }
-};
-
-
+}
