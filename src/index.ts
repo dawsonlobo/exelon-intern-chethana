@@ -6,7 +6,7 @@ import swaggerJsdoc from "swagger-jsdoc";
 import v1Routes from "./routes/v1/route"; // Import the versioned routes
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001; // Change the port number here
 
 // Middleware to parse incoming JSON requests
 app.use(express.json());
@@ -54,6 +54,6 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/v1", v1Routes);
 
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
   console.log(`Swagger Docs available at http://localhost:${PORT}/api-docs`);
 });

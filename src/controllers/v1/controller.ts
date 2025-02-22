@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import City, { ICity } from "../../models/v1/city";
 
+
 // Get all cities
 export const getAllCities = async (req: Request, res: Response) => {
   try {
@@ -67,7 +68,7 @@ export const getAveragePopulation = async (req: Request, res: Response) => {
     }
     res.status(200).json({ avgPopulation: result[0].avgPopulation });
   } catch (err) {
-    res.status(500).json({ message: err instanceof Error ? err.message : 'Internal Server Error' });
+    res.status (500).json({ message: err instanceof Error ? err.message : 'Internal Server Error' });
   }
 };
 
@@ -112,7 +113,7 @@ export const createCity = async (req: Request, res: Response) => {
 // Create multiple cities
 export const createCities = async (req: Request, res: Response) => {
   try {
-    const cities: { name: string; population: number; area: number }[] = req.body;
+    const {cities } = req.body;
 
     if (!Array.isArray(cities) || cities.length === 0) {
       return res.status(400).json({ message: "Request body must be a non-empty array of cities" });
@@ -207,184 +208,130 @@ export const deleteCities = async (req: Request, res: Response) => {
   }
 };
 // Handle city actions
-
-
 export async function handleCityActions(req: Request, res: Response, next: NextFunction): Promise<void> {
-  // Destructure nested parameters from the request body
-  const { 
-    pagination = {}, 
-    filter = {}, 
-    sort = '', 
-    search = '', 
-    searchFields = [], // optional: fields to search in (e.g., ["name", "area", "population"])
-    projection = '', 
-    id 
-  } = req.body;
-  
-  // Extract page and limit from the nested pagination object with defaults
-  const { page = '1', limit = '10' } = pagination;
-  
+  const { pagination = {}, filter = {}, sort = {}, projection = {}, id } = req.body;
+  const search: string = req.query.search as string || "";
+  const searchFields: string[] = Array.isArray(req.query.searchFields) ? req.query.searchFields as string[] : [];
+
+  const isStartsWith = req.query.startsWith === "true";
+  const isEndsWith = req.query.endsWith === "true";
+
+  // Ensure pagination values are numbers
+  const page = Number(pagination.page) || 1;
+  const limit = Number(pagination.limit) || 10;
+
   const query: Record<string, any> = {};
-  const options: Record<string, any> = {};
+  const options: Record<string, any> = { skip: (page - 1) * limit, limit };
 
   try {
-    // If a specific city ID is provided, query by _id
     if (id) query._id = id;
 
-    // ===== Dynamic Filtering =====
-    // Expecting 'filter' to be an object where each key maps to an array of values.
+    // ===== Filtering =====
     if (filter && typeof filter === 'object') {
       const filterQuery: any = { $and: [] };
       Object.entries(filter).forEach(([key, values]) => {
         if (Array.isArray(values) && values.length > 0) {
-          // Build an array of conditions for this key
           const conditions = values.map(value => ({
-            [key]: isNaN(Number(value))
-              ? { $regex: new RegExp(value, "i") }  // For string values, use case-insensitive regex
-              : Number(value)                        // For numeric values, match exactly
+            [key]: isNaN(Number(value)) ? { $regex: new RegExp(value, "i") } : Number(value),
           }));
           filterQuery.$and.push({ $or: conditions });
         }
       });
-      if (filterQuery.$and.length > 0) {
-        Object.assign(query, filterQuery);
-      }
+      if (filterQuery.$and.length > 0) Object.assign(query, filterQuery);
     }
+
+
 // ===== Search =====
-// If a search string is provided and we're in search-only mode,
-// perform three separate queries for exact, starts with, and ends with matches,
-// then return the result in the desired format.
-if (search) {
-  // Use provided searchFields or default to ["name"]
-  const fieldsToSearch = (Array.isArray(searchFields) && searchFields.length > 0) ? searchFields : ["name"];
-  
-  // Build the exact match query for all specified fields
-  const exactQuery = {
-    $or: fieldsToSearch.map(field => {
-      if (City.schema.paths[field] && City.schema.paths[field].instance === "Number") {
-        return {
-          $expr: {
-            $regexMatch: {
-              input: { $toString: `$${field}` },
-              regex: `^${search}$`,
-              options: 'i'
-            }
-          }
-        };
-      } else {
-        return { [field]: { $regex: `^${search}$`, $options: 'i' } };
-      }
-    })
-  };
+if (search && searchFields.length > 0) {
+  const searchQuery: Record<string, any> = { $or: [] };
 
-  // Build the "starts with" query for all specified fields
-  const startsWithQuery = {
-    $or: fieldsToSearch.map(field => {
-      if (City.schema.paths[field] && City.schema.paths[field].instance === "Number") {
-        return {
-          $expr: {
-            $regexMatch: {
-              input: { $toString: `$${field}` },
-              regex: `^${search}`,
-              options: 'i'
-            }
-          }
-        };
-      } else {
-        return { [field]: { $regex: `^${search}`, $options: 'i' } };
-      }
-    })
-  };
+  searchFields.forEach((field: string) => {
+    const schemaType = City.schema.paths[field]?.instance;
 
-  // Build the "ends with" query for all specified fields
-  const endsWithQuery = {
-    $or: fieldsToSearch.map(field => {
-      if (City.schema.paths[field] && City.schema.paths[field].instance === "Number") {
-        return {
-          $expr: {
-            $regexMatch: {
-              input: { $toString: `$${field}` },
-              regex: `${search}$`,
-              options: 'i'
-            }
-          }
-        };
-      } else {
-        return { [field]: { $regex: `${search}$`, $options: 'i' } };
-      }
-    })
-  };
+    // Construct regex pattern based on startsWith and endsWith
+    let regexPattern = search;
 
-  // Run the queries
-  
-  const startsWithCount = await City.countDocuments(startsWithQuery);
-  const endsWithCount = await City.countDocuments(endsWithQuery);
+    if (isStartsWith && isEndsWith) {
+      regexPattern = `^${search}$`; // Exact match
+    } else if (isStartsWith) {
+      regexPattern = `^${search}`; // Starts with search term
+    } else if (isEndsWith) {
+      regexPattern = `${search}$`; // Ends with search term
+    }
 
-  // Return the search result in the standard format
-  res.json({
-    search: [
-      {
-        term: search,
-        fields: fieldsToSearch,
-       
-        startsWith: startsWithCount > 0,
-        endsWith: endsWithCount > 0
-      }
-    ]
+    if (schemaType === "Number" && !isNaN(Number(search))) {
+      // Convert the numeric field to a string and apply the regex pattern
+      searchQuery.$or.push({ [field]: { $regex: regexPattern, $options: "i" } });
+    } else {
+      // Apply the regex pattern directly for string fields
+      searchQuery.$or.push({ [field]: { $regex: regexPattern, $options: "i" } });
+    }
   });
-  return;
+
+  // Merge search query with existing filters
+  query.$and = query.$and ? [...query.$and, searchQuery] : [searchQuery];
 }
+    // ===== Sorting =====
+    const sortOptions: Record<string, 1 | -1> = {};
+
+    if (Array.isArray(sort.sortBy) && Array.isArray(sort.sortDesc)) {
+      sort.sortBy.forEach((field: string, index: number) => {
+        sortOptions[field] = sort.sortDesc[index] ? -1 : 1;
+      });
+    }
 
 
     // ===== Projection =====
-    // Build projection options from a comma-separated list.
-    // Use "-field" (e.g., "-population") to exclude a field; otherwise, include the field.
-    if (projection) {
-      options.projection = projection.split(',').reduce((acc: Record<string, number>, field: string) => {
-        const trimmedField = field.trim();
-        acc[trimmedField.startsWith('-') ? trimmedField.slice(1) : trimmedField] =
-          trimmedField.startsWith('-') ? 0 : 1;
-        return acc;
-      }, {});
+    const projectionFields: Record<string, number> | null =
+    typeof projection === "object" && projection !== null
+      ? Object.fromEntries(
+          Object.entries(projection).map(([key, value]) => [
+            key,
+            value === 1 ? 1 : 0, // Ensure strict 1 or 0 values
+          ])
+        )
+      : null;
+  
+  if (projectionFields) {
+    const hasInclusion = Object.values(projectionFields).includes(1);
+    const hasExclusion = Object.values(projectionFields).includes(0);
+  
+    if (hasInclusion && hasExclusion) {
+      // MongoDB doesn't allow mixed projection, so keep only inclusions
+      for (const key in projectionFields) {
+        if (projectionFields[key] === 0) delete projectionFields[key];
+      }
+    }
+  }
+  
+  console.log("Processed Projection Fields:", projectionFields);
+  
+
+    // ===== Execute Query =====
+    const foundCities = await City.find(query, projectionFields ?? {})
+  .sort(sortOptions) // MongoDB expects an object like { name: -1 }
+  .skip((page - 1) * limit) // Pagination: Skip previous pages
+  .limit(limit); // Limit per page
+
+    const totalCount = await City.countDocuments(query);
+
+    if (foundCities.length === 0) {
+        res.status(404).json({
+        status: 404,
+        message: "No matching cities found",
+        data: { totalCount: 0, tableData: [] },
+      });
     }
 
-    // ===== Sorting =====
-    // Expects a format like "name:asc" or "name:desc"
-    if (sort) {
-      const [key, order] = sort.split(':');
-      options.sort = { [key]: order === 'desc' ? -1 : 1 };
-    }
-
-    // ===== Pagination =====
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    // Execute the query with pagination, sort, and projection options
-    const cities = await City.find(query, options.projection)
-                              .skip(skip)
-                              .limit(parseInt(limit))
-                              .sort(options.sort);
-    const totalCities = await City.countDocuments(query);
-
-    // Return response in standard format:
-    // {
-    //   "status": 200,
-    //   "message": "Success",
-    //   "data": {
-    //      "totalCount": <totalCities>,
-    //      "tableData": [ ...cities ]
-    //   }
-    // }
-    res.json({
+    res.status(200).json({
       status: 200,
       message: "Success",
-      data: {
-        totalCount: totalCities,
-        tableData: cities
-      }
+      data: { totalCount, tableData: foundCities },
     });
+
+
   } catch (error) {
-    console.error('Error fetching cities:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    res.status(500).json({ error: 'Error fetching cities. Please try again later.', message: errorMessage });
+    console.error("Error fetching cities:", error);
+    res.status(500).json({ status: 500, message: "Internal Server Error" });
   }
 }

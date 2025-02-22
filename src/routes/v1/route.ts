@@ -285,9 +285,10 @@ router.get('/city/:id', async (req, res) => {
  *               population:
  *                 type: integer
  *                 example: 8419600
- *               country:
- *                 type: string
- *                 example: "USA"
+ *               area:
+ *                 type: integer
+ *                 example: 468.9
+ *              
  *     responses:
  *       201:
  *         description: City successfully created
@@ -324,8 +325,8 @@ router.post('/city', validateCity, async (req, res) => {
  *                       type: string
  *                     population:
  *                       type: integer
- *                     country:
- *                       type: string
+ *                     area:
+ *                       type: integer
  *           examples:
  *             validRequest:
  *               summary: Example Request
@@ -333,10 +334,10 @@ router.post('/city', validateCity, async (req, res) => {
  *                 cities:
  *                   - name: "New York"
  *                     population: 8419600
- *                     country: "USA"
+ *                     area: 468.9
  *                   - name: "Mumbai"
  *                     population: 20411000
- *                     country: "India"
+ *                     area: 603.4
  *     responses:
  *       201:
  *         description: Cities created successfully
@@ -358,8 +359,8 @@ router.post('/city', validateCity, async (req, res) => {
  *                         type: string
  *                       population:
  *                         type: integer
- *                       country:
- *                         type: string
+ *                       area:
+ *                         type: integer
  *             examples:
  *               successResponse:
  *                 summary: Cities Created
@@ -369,11 +370,11 @@ router.post('/city', validateCity, async (req, res) => {
  *                     - id: "1"
  *                       name: "New York"
  *                       population: 8419600
- *                       country: "USA"
+ *                       area: 468.9
  *                     - id: "2"
  *                       name: "Mumbai"
  *                       population: 20411000
- *                       country: "India"
+ *                       area: 603.4
  */
 router.post('/cities', validateCity, async (req, res) => {
   try {
@@ -565,13 +566,12 @@ router.delete('/cities', async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
-
 /**
  * @swagger
  * /api/v1/filter-cities:
  *   post:
- *     tags: City API
- *     summary: abcd Retrieve cities with a selected operation
+ *     summary: Retrieve cities with a selected operation
+ *     tags: ['City API']
  *     description: >
  *       Choose one of the following operations from the dropdown:
  *       - **pagination**: Returns cities with pagination.
@@ -600,11 +600,19 @@ router.delete('/cities', async (req, res) => {
  *             ProjectionExample:
  *               summary: Projection only
  *               value:
- *                 projection: "name,area"
+ *                 projection:
+ *                   id: 1
+ *                   name: 0
+ *                   area: 1
+ *                   population: 0
  *             SortExample:
- *               summary: Sort only
+ *               summary: Sort by name (desc) and area (asc)
  *               value:
- *                 sort: "name:asc"
+ *                 options:
+ *                   page: 1
+ *                   itemsPerPage: 10
+ *                   sortBy: ["name", "area"]
+ *                   sortDesc: [true, false]
  *             FilterExample:
  *               summary: Filter only
  *               value:
@@ -613,8 +621,10 @@ router.delete('/cities', async (req, res) => {
  *             SearchExample:
  *               summary: Search only
  *               value:
- *                 search: "New York"
+ *                 search: "York"
  *                 searchFields: ["name", "area", "population"]
+ *                 startsWith: false
+ *                 endsWith: true
  *     responses:
  *       200:
  *         description: Successful response based on the selected operation.
@@ -630,6 +640,22 @@ router.delete('/cities', async (req, res) => {
  *
  * components:
  *   schemas:
+ *     City:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *           example: 1
+ *         name:
+ *           type: string
+ *           example: "New York"
+ *         population:
+ *           type: integer
+ *           example: 8419600
+ *         area:
+ *           type: number
+ *           example: 468.9
+ *
  *     PaginationRequest:
  *       type: object
  *       required:
@@ -651,25 +677,50 @@ router.delete('/cities', async (req, res) => {
  *         - projection
  *       properties:
  *         projection:
- *           type: string
- *           description: Comma-separated list of fields to include or exclude. Prefix with "-" to exclude.
- *           example: "name,area"
+ *           type: object
+ *           description: Fields to include (1) or exclude (0).
+ *           properties:
+ *             id:
+ *               type: integer
+ *               enum: [0, 1]
+ *               description: Include (1) or exclude (0) the 'id' field.
+ *             name:
+ *               type: integer
+ *               enum: [0, 1]
+ *               description: Include (1) or exclude (0) the 'name' field.
+ *             area:
+ *               type: integer
+ *               enum: [0, 1]
+ *               description: Include (1) or exclude (0) the 'area' field.
+ *             population:
+ *               type: integer
+ *               enum: [0, 1]
+ *               description: Include (1) or exclude (0) the 'population' field.
  *
  *     SortRequest:
  *       type: object
  *       required:
- *         - sort
+ *         - options
  *       properties:
- *         sort:
- *           type: string
- *           description: Sort order in the format "field:asc" or "field:desc".
- *           example: "name:asc"
- *
- *     FilterRequest:
- *       type: object
- *       required:
- *           example: "name,area"
- *
+ *         options:
+ *           type: object
+ *           properties:
+ *             page:
+ *               type: integer
+ *               example: 1
+ *             itemsPerPage:
+ *               type: integer
+ *               example: 10
+ *             sortBy:
+ *               type: array
+ *               items:
+ *                 type: string
+ *               example: ["name", "area"]
+ *             sortDesc:
+ *               type: array
+ *               items:
+ *                 type: boolean
+ *               example: [true, false]
  *
  *     FilterRequest:
  *       type: object
@@ -678,9 +729,6 @@ router.delete('/cities', async (req, res) => {
  *       properties:
  *         filter:
  *           type: object
- *           description: >
- *             Dynamic filter criteria. Each key can be any field (e.g., name, area, population)
- *             and its value should be an array of values.
  *           example: { "name": ["New York"] }
  *
  *     SearchRequest:
@@ -689,29 +737,19 @@ router.delete('/cities', async (req, res) => {
  *         - search
  *       properties:
  *         search:
+ *           type: string
+ *           example: "York"
+ *         searchFields:
  *           type: array
  *           items:
- *             type: object
- *             properties:
- *               term:
- *                 type: string
- *                 description: Search string for matching cities.
- *                 example: "York"
- *               fields:
- *                 type: array
- *                 items:
- *                   type: string
- *                 description: List of fields to perform the search on.
- *                 example: ["name"]
- *               startsWith:
- *                 type: boolean
- *                 description: If true, searches for cities starting with the term.
- *                 example: false
- *               endsWith:
- *                 type: boolean
- *                 description: If true, searches for cities ending with the term.
- *                 example: true
- *
+ *             type: string
+ *           example: ["name"]
+ *         startsWith:
+ *           type: boolean
+ *           example: false
+ *         endsWith:
+ *           type: boolean
+ *           example: true
  *     PaginationResponse:
  *       type: object
  *       properties:
@@ -742,16 +780,9 @@ router.delete('/cities', async (req, res) => {
  *           type: string
  *           example: "Success"
  *         data:
- *           type: object
- *           properties:
- *             totalCount:
- *               type: number
- *               example: 100
- *             tableData:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/City'
- *
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/City'
  *     SortResponse:
  *       type: object
  *       properties:
@@ -762,15 +793,9 @@ router.delete('/cities', async (req, res) => {
  *           type: string
  *           example: "Success"
  *         data:
- *           type: object
- *           properties:
- *             totalCount:
- *               type: number
- *               example: 100
- *             tableData:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/City'
+ *           type: array
+ *           items:
+ *             $ref: "#/components/schemas/City"
  *
  *     FilterResponse:
  *       type: object
@@ -782,15 +807,9 @@ router.delete('/cities', async (req, res) => {
  *           type: string
  *           example: "Success"
  *         data:
- *           type: object
- *           properties:
- *             totalCount:
- *               type: number
- *               example: 100
- *             tableData:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/City'
+ *           type: array
+ *           items:
+ *             $ref: "#/components/schemas/City"
  *
  *     SearchResponse:
  *       type: object
@@ -802,25 +821,10 @@ router.delete('/cities', async (req, res) => {
  *           type: string
  *           example: "Success"
  *         data:
- *           type: object
- *           properties:
- *             totalCount:
- *               type: number
- *               example: 1
- *             tableData:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   name:
- *                     type: string
- *                     example: "New York"
- *                   area:
- *                     type: number
- *                     example: 468.9
- *                   population:
- *                     type: number
- *                     example: 8419600
+ *           type: array
+ *           items:
+ *             $ref: "#/components/schemas/City"
+ *
  */
 
 router.post("/filter-cities", handleCityActions);
