@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import dotenv from 'dotenv';
 import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
-import v1Routes from "./routes/v1/route"; // Import the versioned routes
+import v1Routes from "./routes/v1/cities"; // Import the versioned routes
 
 const app = express();
 const PORT = process.env.PORT || 5000; // Change the port number here

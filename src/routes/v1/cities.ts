@@ -14,7 +14,7 @@ import {
   updateCityByName,
   deleteCities,
   handleCityActions
-} from '../../controllers/v1/controller';
+} from '../../controllers/v1/Cities';
 
 const router = express.Router();
 
