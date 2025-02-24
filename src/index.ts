@@ -6,7 +6,7 @@ import swaggerJsdoc from "swagger-jsdoc";
 import v1Routes from "./routes/v1/route"; // Import the versioned routes
 
 const app = express();
-const PORT = process.env.PORT || 5001; // Change the port number here
+const PORT = process.env.PORT || 5000; // Change the port number here
 
 // Middleware to parse incoming JSON requests
 app.use(express.json());

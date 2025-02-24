@@ -571,8 +571,9 @@ router.delete('/cities', async (req, res) => {
  * /api/v1/filter-cities:
  *   post:
  *     summary: Retrieve cities with a selected operation
- *     tags: ['City API']
- *     description: >
+ *     tags:
+ *       - Cities
+ *     description: |
  *       Choose one of the following operations from the dropdown:
  *       - **pagination**: Returns cities with pagination.
  *       - **projection**: Returns cities with only selected fields.
@@ -585,18 +586,87 @@ router.delete('/cities', async (req, res) => {
  *         application/json:
  *           schema:
  *             oneOf:
- *               - $ref: '#/components/schemas/PaginationRequest'
- *               - $ref: '#/components/schemas/ProjectionRequest'
- *               - $ref: '#/components/schemas/SortRequest'
- *               - $ref: '#/components/schemas/FilterRequest'
- *               - $ref: '#/components/schemas/SearchRequest'
+ *               - type: object
+ *                 properties:
+ *                   options:
+ *                     type: object
+ *                     properties:
+ *                       page:
+ *                         type: string
+ *                         example: "1"
+ *                       itemsPerPage:
+ *                         type: string
+ *                         example: "10"
+ *               - type: object
+ *                 properties:
+ *                   projection:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         enum: [0, 1]
+ *                         description: Include (1) or exclude (0) the 'id' field.
+ *                       name:
+ *                         type: integer
+ *                         enum: [0, 1]
+ *                         description: Include (1) or exclude (0) the 'name' field.
+ *                       area:
+ *                         type: integer
+ *                         enum: [0, 1]
+ *                         description: Include (1) or exclude (0) the 'area' field.
+ *                       population:
+ *                         type: integer
+ *                         enum: [0, 1]
+ *                         description: Include (1) or exclude (0) the 'population' field.
+ *               - type: object
+ *                 properties:
+ *                   options:
+ *                     type: object
+ *                     properties:
+ *                       page:
+ *                         type: string
+ *                         example: "1"
+ *                       itemsPerPage:
+ *                         type: string
+ *                         example: "10"
+ *                       sortBy:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                         example: ["name", "area"]
+ *                       sortDesc:
+ *                         type: array
+ *                         items:
+ *                           type: boolean
+ *                         example: [true, false]
+ *               - type: object
+ *                 properties:
+ *                   filter:
+ *                     type: object
+ *                     example: { "name": ["New York"] }
+ *               - type: object
+ *                 properties:
+ *                   search:
+ *                     type: string
+ *                     example: "York"
+ *                   searchFields:
+ *                     type: array
+ *                     items:
+ *                       type: string
+ *                     example: ["name"]
+ *                   startsWith:
+ *                     type: boolean
+ *                     example: false
+ *                   endsWith:
+ *                     type: boolean
+ *                     example: true
  *           examples:
  *             PaginationExample:
  *               summary: Pagination only
  *               value:
- *                 pagination:
+ *                 options:
  *                   page: "1"
- *                   limit: "10"
+ *                   itemsPerPage: "10"
  *             ProjectionExample:
  *               summary: Projection only
  *               value:
@@ -632,199 +702,37 @@ router.delete('/cities', async (req, res) => {
  *           application/json:
  *             schema:
  *               oneOf:
- *                 - $ref: '#/components/schemas/PaginationResponse'
- *                 - $ref: '#/components/schemas/ProjectionResponse'
- *                 - $ref: '#/components/schemas/SortResponse'
- *                 - $ref: '#/components/schemas/FilterResponse'
- *                 - $ref: '#/components/schemas/SearchResponse'
- *
- * components:
- *   schemas:
- *     City:
- *       type: object
- *       properties:
- *         id:
- *           type: integer
- *           example: 1
- *         name:
- *           type: string
- *           example: "New York"
- *         population:
- *           type: integer
- *           example: 8419600
- *         area:
- *           type: number
- *           example: 468.9
- *
- *     PaginationRequest:
- *       type: object
- *       required:
- *         - pagination
- *       properties:
- *         pagination:
- *           type: object
- *           properties:
- *             page:
- *               type: string
- *               example: "1"
- *             limit:
- *               type: string
- *               example: "10"
- *
- *     ProjectionRequest:
- *       type: object
- *       required:
- *         - projection
- *       properties:
- *         projection:
- *           type: object
- *           description: Fields to include (1) or exclude (0).
- *           properties:
- *             id:
- *               type: integer
- *               enum: [0, 1]
- *               description: Include (1) or exclude (0) the 'id' field.
- *             name:
- *               type: integer
- *               enum: [0, 1]
- *               description: Include (1) or exclude (0) the 'name' field.
- *             area:
- *               type: integer
- *               enum: [0, 1]
- *               description: Include (1) or exclude (0) the 'area' field.
- *             population:
- *               type: integer
- *               enum: [0, 1]
- *               description: Include (1) or exclude (0) the 'population' field.
- *
- *     SortRequest:
- *       type: object
- *       required:
- *         - options
- *       properties:
- *         options:
- *           type: object
- *           properties:
- *             page:
- *               type: integer
- *               example: 1
- *             itemsPerPage:
- *               type: integer
- *               example: 10
- *             sortBy:
- *               type: array
- *               items:
- *                 type: string
- *               example: ["name", "area"]
- *             sortDesc:
- *               type: array
- *               items:
- *                 type: boolean
- *               example: [true, false]
- *
- *     FilterRequest:
- *       type: object
- *       required:
- *         - filter
- *       properties:
- *         filter:
- *           type: object
- *           example: { "name": ["New York"] }
- *
- *     SearchRequest:
- *       type: object
- *       required:
- *         - search
- *       properties:
- *         search:
- *           type: string
- *           example: "York"
- *         searchFields:
- *           type: array
- *           items:
- *             type: string
- *           example: ["name"]
- *         startsWith:
- *           type: boolean
- *           example: false
- *         endsWith:
- *           type: boolean
- *           example: true
- *     PaginationResponse:
- *       type: object
- *       properties:
- *         status:
- *           type: number
- *           example: 200
- *         message:
- *           type: string
- *           example: "Success"
- *         data:
- *           type: object
- *           properties:
- *             totalCount:
- *               type: number
- *               example: 100
- *             tableData:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/City'
- *
- *     ProjectionResponse:
- *       type: object
- *       properties:
- *         status:
- *           type: number
- *           example: 200
- *         message:
- *           type: string
- *           example: "Success"
- *         data:
- *           type: array
- *           items:
- *             $ref: '#/components/schemas/City'
- *     SortResponse:
- *       type: object
- *       properties:
- *         status:
- *           type: number
- *           example: 200
- *         message:
- *           type: string
- *           example: "Success"
- *         data:
- *           type: array
- *           items:
- *             $ref: "#/components/schemas/City"
- *
- *     FilterResponse:
- *       type: object
- *       properties:
- *         status:
- *           type: number
- *           example: 200
- *         message:
- *           type: string
- *           example: "Success"
- *         data:
- *           type: array
- *           items:
- *             $ref: "#/components/schemas/City"
- *
- *     SearchResponse:
- *       type: object
- *       properties:
- *         status:
- *           type: number
- *           example: 200
- *         message:
- *           type: string
- *           example: "Success"
- *         data:
- *           type: array
- *           items:
- *             $ref: "#/components/schemas/City"
- *
+ *                 - type: object
+ *                   properties:
+ *                     status:
+ *                       type: number
+ *                       example: 200
+ *                     message:
+ *                       type: string
+ *                       example: "Success"
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         totalCount:
+ *                           type: number
+ *                           example: 100
+ *                         tableData:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               id:
+ *                                 type: integer
+ *                                 example: 1
+ *                               name:
+ *                                 type: string
+ *                                 example: "New York"
+ *                               population:
+ *                                 type: integer
+ *                                 example: 8419600
+ *                               area:
+ *                                 type: number
+ *                                 example: 468.9
  */
 
 router.post("/filter-cities", handleCityActions);

@@ -209,25 +209,27 @@ export const deleteCities = async (req: Request, res: Response) => {
 };
 // Handle city actions
 export async function handleCityActions(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const { pagination = {}, filter = {}, sort = {}, projection = {}, id } = req.body;
-  const search: string = req.query.search as string || "";
-  const searchFields: string[] = Array.isArray(req.query.searchFields) ? req.query.searchFields as string[] : [];
-
-  const isStartsWith = req.query.startsWith === "true";
-  const isEndsWith = req.query.endsWith === "true";
-
-  // Ensure pagination values are numbers
-  const page = Number(pagination.page) || 1;
-  const limit = Number(pagination.limit) || 10;
-
-  const query: Record<string, any> = {};
-  const options: Record<string, any> = { skip: (page - 1) * limit, limit };
-
   try {
+    const { filter = {}, projection = {}, id, search = "", searchFields = [], options = {} } = req.body;
+    const isStartsWith = req.body.startsWith === true;
+    const isEndsWith = req.body.endsWith === true;
+
+    // Ensure options and pagination exist
+    const { page = 1, itemsPerPage = 10, sortBy = [], sortDesc = [] } = options;
+    const pageNumber = Number(page) || 1;
+    const limit = Number(itemsPerPage) || 10;
+
+    console.log("Request body:", req.body);
+
+    const query: Record<string, any> = {};
+ 
+
     if (id) query._id = id;
+    
+    
 
     // ===== Filtering =====
-    if (filter && typeof filter === 'object') {
+    if (filter && typeof filter === "object") {
       const filterQuery: any = { $and: [] };
       Object.entries(filter).forEach(([key, values]) => {
         if (Array.isArray(values) && values.length > 0) {
@@ -240,87 +242,71 @@ export async function handleCityActions(req: Request, res: Response, next: NextF
       if (filterQuery.$and.length > 0) Object.assign(query, filterQuery);
     }
 
+    // ===== Searching =====
+    if (search && searchFields.length > 0) {
+      const searchQuery: Record<string, any> = { $or: [] };
 
-// ===== Search =====
-if (search && searchFields.length > 0) {
-  const searchQuery: Record<string, any> = { $or: [] };
+      searchFields.forEach((field: string) => {
+        const schemaType = City.schema.paths[field]?.instance;
+        let regexPattern = search;
 
-  searchFields.forEach((field: string) => {
-    const schemaType = City.schema.paths[field]?.instance;
+        if (isStartsWith && isEndsWith) regexPattern = `^${search}$`;
+        else if (isStartsWith) regexPattern = `^${search}`;
+        else if (isEndsWith) regexPattern = `${search}$`;
 
-    // Construct regex pattern based on startsWith and endsWith
-    let regexPattern = search;
-
-    if (isStartsWith && isEndsWith) {
-      regexPattern = `^${search}$`; // Exact match
-    } else if (isStartsWith) {
-      regexPattern = `^${search}`; // Starts with search term
-    } else if (isEndsWith) {
-      regexPattern = `${search}$`; // Ends with search term
+        if (schemaType === "Number") {
+          const numericValue = Number(search);
+          if (!isNaN(numericValue)) {
+            if (isStartsWith && isEndsWith) searchQuery.$or.push({ [field]: numericValue });
+            else if (isStartsWith) searchQuery.$or.push({ [field]: { $gte: numericValue, $lt: numericValue * 10 } });
+            else if (isEndsWith) searchQuery.$or.push({
+              $expr: {
+                $regexMatch: {
+                  input: { $toString: `$${field}` },
+                  regex: regexPattern,
+                  options: "i"
+                }
+              }
+            });
+            else searchQuery.$or.push({ [field]: numericValue });
+          }
+        } else {
+          searchQuery.$or.push({ [field]: { $regex: new RegExp(regexPattern, "i") } });
+        }
+      });
+      query.$and = query.$and ? [...query.$and, searchQuery] : [searchQuery];
     }
 
-    if (schemaType === "Number" && !isNaN(Number(search))) {
-      // Convert the numeric field to a string and apply the regex pattern
-      searchQuery.$or.push({ [field]: { $regex: regexPattern, $options: "i" } });
-    } else {
-      // Apply the regex pattern directly for string fields
-      searchQuery.$or.push({ [field]: { $regex: regexPattern, $options: "i" } });
-    }
-  });
-
-  // Merge search query with existing filters
-  query.$and = query.$and ? [...query.$and, searchQuery] : [searchQuery];
-}
     // ===== Sorting =====
     const sortOptions: Record<string, 1 | -1> = {};
-
-    if (Array.isArray(sort.sortBy) && Array.isArray(sort.sortDesc)) {
-      sort.sortBy.forEach((field: string, index: number) => {
-        sortOptions[field] = sort.sortDesc[index] ? -1 : 1;
+    if (Array.isArray(sortBy) && Array.isArray(sortDesc) && sortBy.length === sortDesc.length) {
+      sortBy.forEach((field: string, index: number) => {
+        sortOptions[field] = sortDesc[index] ? -1 : 1;
       });
     }
 
-
     // ===== Projection =====
-    const projectionFields: Record<string, number> | null =
-    typeof projection === "object" && projection !== null
-      ? Object.fromEntries(
-          Object.entries(projection).map(([key, value]) => [
-            key,
-            value === 1 ? 1 : 0, // Ensure strict 1 or 0 values
-          ])
-        )
-      : null;
-  
-  if (projectionFields) {
-    const hasInclusion = Object.values(projectionFields).includes(1);
-    const hasExclusion = Object.values(projectionFields).includes(0);
-  
-    if (hasInclusion && hasExclusion) {
-      // MongoDB doesn't allow mixed projection, so keep only inclusions
-      for (const key in projectionFields) {
-        if (projectionFields[key] === 0) delete projectionFields[key];
-      }
-    }
-  }
-  
-  console.log("Processed Projection Fields:", projectionFields);
-  
+    const projectionFields =
+      typeof projection === "object" && projection !== null
+        ? Object.fromEntries(Object.entries(projection).filter(([_, value]) => value === 1))
+        : null;
 
     // ===== Execute Query =====
     const foundCities = await City.find(query, projectionFields ?? {})
-  .sort(sortOptions) // MongoDB expects an object like { name: -1 }
-  .skip((page - 1) * limit) // Pagination: Skip previous pages
-  .limit(limit); // Limit per page
+      .sort(sortOptions)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(); // Using .lean() improves performance
 
     const totalCount = await City.countDocuments(query);
 
     if (foundCities.length === 0) {
-        res.status(404).json({
+      res.status(404).json({
         status: 404,
         message: "No matching cities found",
         data: { totalCount: 0, tableData: [] },
       });
+      return;
     }
 
     res.status(200).json({
@@ -328,8 +314,6 @@ if (search && searchFields.length > 0) {
       message: "Success",
       data: { totalCount, tableData: foundCities },
     });
-
-
   } catch (error) {
     console.error("Error fetching cities:", error);
     res.status(500).json({ status: 500, message: "Internal Server Error" });
