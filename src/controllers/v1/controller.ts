@@ -279,11 +279,22 @@ export async function handleCityActions(req: Request, res: Response, next: NextF
 
     // ===== Sorting =====
     const sortOptions: Record<string, 1 | -1> = {};
-    if (Array.isArray(sortBy) && Array.isArray(sortDesc) && sortBy.length === sortDesc.length) {
-      sortBy.forEach((field: string, index: number) => {
-        sortOptions[field] = sortDesc[index] ? -1 : 1;
-      });
-    }
+      // Primary sorting field
+      if (Array.isArray(sortBy) && Array.isArray(sortDesc) && sortBy.length > 1) {
+        // Prioritize sorting by the second field
+        sortOptions[sortBy[1]] = sortDesc[1] ? -1 : 1;
+      
+        // If duplicates exist in the second field, sort by the first field as a tiebreaker
+        sortOptions[sortBy[0]] = sortDesc[0] ? -1 : 1;
+      }
+      
+      // If only one field exists, use it normally
+      else if (sortBy.length === 1) {
+        sortOptions[sortBy[0]] = sortDesc[0] ? -1 : 1;
+      }
+      
+      console.log("Final Sorting Options:", sortOptions);
+    
 
     // ===== Projection =====
     const projectionFields =
